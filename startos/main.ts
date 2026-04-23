@@ -7,16 +7,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
   /**
    * ======================== Setup ========================
    *
-   * Load the wrapper-managed gateway token and inject it into OpenClaw via
-   * the `OPENCLAW_GATEWAY_TOKEN` env var. The token was generated on
-   * install (see `init/seedFiles.ts`) and is persisted in `store.json` on
-   * the `main` volume.
-   *
-   * If the token is missing for any reason (corrupt store, manual deletion)
-   * we surface that loudly rather than silently starting an unauthenticated
-   * gateway — OpenClaw's own startup will refuse to bind to non-loopback
-   * without auth, which would loop the service. See:
-   *   https://github.com/openclaw/openclaw/blob/main/docs/gateway/configuration-reference.md
+   * Load the wrapper-managed gateway token. Generated on install
+   * (see init/seedFiles.ts), persisted in store.json on the main volume.
    */
   console.info(i18n('Starting OpenClaw gateway...'))
 
@@ -31,16 +23,17 @@ export const main = sdk.setupMain(async ({ effects }) => {
   /**
    * ======================== Daemon ========================
    *
-   * Single subcontainer running the OpenClaw gateway. Bound to `lan`
-   * (0.0.0.0) on port 18789 so StartOS's networking stack can route
-   * inbound traffic from LAN, Tor, and clearnet. Auth is enforced via
-   * the gateway token.
+   * StartOS routes incoming traffic through an internal reverse proxy on
+   * the 10.0.0.0/8 private range. We pre-seed openclaw.json with
+   * gateway.trustedProxies covering that range plus loopback, so OpenClaw
+   * accepts WebSocket upgrades from the StartOS proxy. Without this,
+   * OpenClaw rejects connections with "Proxy headers detected from
+   * untrusted address" and returns code 4008.
    *
-   * The `main` volume is mounted at `/home/node/.openclaw` because the
-   * upstream Dockerfile sets `USER node` (uid 1000) with `HOME=/home/node`
-   * and OpenClaw stores its state at `$HOME/.openclaw`. Mounting there
-   * means OpenClaw's default paths (`openclaw.json`, `workspace/`, logs,
-   * channel sessions) all land on the persistent volume.
+   * The config file is written via a small inline shell wrapper because
+   * SDK 1.3.2 doesn't currently expose a clean way to write arbitrary
+   * files into the subcontainer rootfs at startup time. We write through
+   * the volume mount instead.
    */
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
@@ -55,50 +48,31 @@ export const main = sdk.setupMain(async ({ effects }) => {
       'openclaw-sub',
     ),
     exec: {
+      // Inline bootstrap: ensure openclaw.json exists with the right
+      // proxy + auth config before exec'ing the gateway. This runs every
+      // start, but only WRITES the file if it doesn't already exist —
+      // user edits (channel credentials, model API keys, etc.) survive.
       command: [
-        'node',
-        '/app/openclaw.mjs',
-        'gateway',
-        '--bind',
-        'lan',
-        '--port',
-        String(gatewayPort),
-        '--allow-unconfigured',
-      ],
-      env: {
-        OPENCLAW_GATEWAY_TOKEN: gatewayToken,
-        // Point OpenClaw at the persistent volume for state + workspace.
-        // These match the defaults derived from $HOME, but we set them
-        // explicitly so future upstream default changes don't surprise us.
-        HOME: '/home/node',
-        OPENCLAW_STATE_DIR: dataMountpoint,
-        OPENCLAW_CONFIG_PATH: `${dataMountpoint}/openclaw.json`,
-        // Production mode silences dev warnings.
-        NODE_ENV: 'production',
-      },
-      // OpenClaw's gateway can take a moment to do first-start migrations
-      // and to scan the workspace. Give it generous shutdown headroom.
-      sigtermTimeout: 30_000,
-    },
-    ready: {
-      display: i18n('Gateway'),
-      // OpenClaw exposes `/healthz` for liveness — but the simplest and
-      // most reliable check is just whether the port is bound. Once it is,
-      // the gateway is accepting connections.
-      fn: () =>
-        sdk.healthCheck.checkPortListening(effects, gatewayPort, {
-          successMessage: i18n('OpenClaw gateway is ready'),
-          errorMessage: i18n('OpenClaw gateway is not responding'),
-        }),
-      // OpenClaw's first start does a node_modules-ish workspace scan and
-      // can take 15-30 s; don't flash red during the warm-up.
-      gracePeriod: 30_000,
-    },
-    requires: [],
-  })
-})
-
-// Avoid unused-import lint when bridgePort isn't referenced in the daemon
-// command (it's already declared via setInterfaces). Re-exporting keeps it
-// available to anyone extending main.ts.
-export { bridgePort }
+        'sh',
+        '-c',
+        [
+          'CONFIG="$OPENCLAW_CONFIG_PATH"',
+          'if [ ! -f "$CONFIG" ]; then',
+          '  echo "[wrapper] writing initial openclaw.json"',
+          '  mkdir -p "$(dirname "$CONFIG")"',
+          '  cat > "$CONFIG" <<EOF',
+          '{',
+          '  "gateway": {',
+          '    "mode": "local",',
+          '    "port": ' + String(gatewayPort) + ',',
+          '    "bind": "lan",',
+          '    "auth": {',
+          '      "mode": "token",',
+          '      "token": "' + gatewayToken + '"',
+          '    },',
+          '    "trustedProxies": ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]',
+          '  }',
+          '}',
+          'EOF',
+          'fi',
+          'exec node /
