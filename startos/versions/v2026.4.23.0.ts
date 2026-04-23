@@ -10,7 +10,7 @@ import { VersionInfo } from '@start9labs/start-sdk'
  * specific commit via the git submodule at `./openclaw`.
  */
 export const v_2026_4_23_0 = VersionInfo.of({
-  version: '2026.4.23:0',
+  version: '2026.4.23:1',
   releaseNotes: {
     en_US: 'Initial StartOS 0.4.0 wrapper for OpenClaw.',
   },
