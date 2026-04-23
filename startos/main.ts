@@ -6,9 +6,6 @@ import { bridgePort, dataMountpoint, gatewayPort } from './utils'
 export const main = sdk.setupMain(async ({ effects }) => {
   /**
    * ======================== Setup ========================
-   *
-   * Load the wrapper-managed gateway token. Generated on install
-   * (see init/seedFiles.ts), persisted in store.json on the main volume.
    */
   console.info(i18n('Starting OpenClaw gateway...'))
 
@@ -21,19 +18,50 @@ export const main = sdk.setupMain(async ({ effects }) => {
   }
 
   /**
+   * Build the openclaw.json content as a JSON string. We pre-seed
+   * gateway.trustedProxies with the StartOS internal proxy ranges so
+   * OpenClaw accepts WebSocket upgrades from the StartOS reverse proxy
+   * (without this, browsers get rejected with code 4008 "connect failed").
+   */
+  const openclawConfig = JSON.stringify(
+    {
+      gateway: {
+        mode: 'local',
+        port: gatewayPort,
+        bind: 'lan',
+        auth: {
+          mode: 'token',
+          token: gatewayToken,
+        },
+        trustedProxies: [
+          '127.0.0.1',
+          '::1',
+          '10.0.0.0/8',
+          '172.16.0.0/12',
+          '192.168.0.0/16',
+        ],
+      },
+    },
+    null,
+    2,
+  )
+
+  // Base64-encode the config so we can pass it through the shell without
+  // worrying about quoting. The bootstrap shell snippet decodes it and
+  // writes the file only if one doesn't already exist (so user edits to
+  // openclaw.json — channel creds, model API keys, etc. — survive restarts).
+  const configB64 = Buffer.from(openclawConfig).toString('base64')
+  const bootstrapScript =
+    'CONFIG="$OPENCLAW_CONFIG_PATH"; ' +
+    'if [ ! -f "$CONFIG" ]; then ' +
+    '  echo "[wrapper] writing initial openclaw.json"; ' +
+    '  mkdir -p "$(dirname "$CONFIG")"; ' +
+    '  echo "' + configB64 + '" | base64 -d > "$CONFIG"; ' +
+    'fi; ' +
+    'exec node /app/openclaw.mjs gateway'
+
+  /**
    * ======================== Daemon ========================
-   *
-   * StartOS routes incoming traffic through an internal reverse proxy on
-   * the 10.0.0.0/8 private range. We pre-seed openclaw.json with
-   * gateway.trustedProxies covering that range plus loopback, so OpenClaw
-   * accepts WebSocket upgrades from the StartOS proxy. Without this,
-   * OpenClaw rejects connections with "Proxy headers detected from
-   * untrusted address" and returns code 4008.
-   *
-   * The config file is written via a small inline shell wrapper because
-   * SDK 1.3.2 doesn't currently expose a clean way to write arbitrary
-   * files into the subcontainer rootfs at startup time. We write through
-   * the volume mount instead.
    */
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
@@ -48,31 +76,27 @@ export const main = sdk.setupMain(async ({ effects }) => {
       'openclaw-sub',
     ),
     exec: {
-      // Inline bootstrap: ensure openclaw.json exists with the right
-      // proxy + auth config before exec'ing the gateway. This runs every
-      // start, but only WRITES the file if it doesn't already exist —
-      // user edits (channel credentials, model API keys, etc.) survive.
-      command: [
-        'sh',
-        '-c',
-        [
-          'CONFIG="$OPENCLAW_CONFIG_PATH"',
-          'if [ ! -f "$CONFIG" ]; then',
-          '  echo "[wrapper] writing initial openclaw.json"',
-          '  mkdir -p "$(dirname "$CONFIG")"',
-          '  cat > "$CONFIG" <<EOF',
-          '{',
-          '  "gateway": {',
-          '    "mode": "local",',
-          '    "port": ' + String(gatewayPort) + ',',
-          '    "bind": "lan",',
-          '    "auth": {',
-          '      "mode": "token",',
-          '      "token": "' + gatewayToken + '"',
-          '    },',
-          '    "trustedProxies": ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]',
-          '  }',
-          '}',
-          'EOF',
-          'fi',
-          'exec node /
+      command: ['sh', '-c', bootstrapScript],
+      env: {
+        OPENCLAW_GATEWAY_TOKEN: gatewayToken,
+        HOME: '/home/node',
+        OPENCLAW_STATE_DIR: dataMountpoint,
+        OPENCLAW_CONFIG_PATH: dataMountpoint + '/openclaw.json',
+        NODE_ENV: 'production',
+      },
+      sigtermTimeout: 30_000,
+    },
+    ready: {
+      display: i18n('Gateway'),
+      fn: () =>
+        sdk.healthCheck.checkPortListening(effects, gatewayPort, {
+          successMessage: i18n('OpenClaw gateway is ready'),
+          errorMessage: i18n('OpenClaw gateway is not responding'),
+        }),
+      gracePeriod: 30_000,
+    },
+    requires: [],
+  })
+})
+
+export { bridgePort }
