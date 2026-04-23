@@ -14,6 +14,16 @@ export const main = sdk.setupMain(async ({ effects }) => {
     )
   }
 
+  /**
+   * Pre-seed openclaw.json. Key decisions:
+   *   - bind: "lan"            - listen on all interfaces so StartOS can proxy
+   *   - auth: token            - use our generated token
+   *   - trustedProxies         - trust the StartOS internal proxy (10.0.x.x)
+   *   - controlUi.dangerouslyAllowHostHeaderOriginFallback: true
+   *                            - accept any origin whose host matches the
+   *                              request host. Safe on StartOS because only
+   *                              the StartOS proxy can reach us.
+   */
   const openclawConfig = JSON.stringify(
     {
       gateway: {
@@ -31,6 +41,9 @@ export const main = sdk.setupMain(async ({ effects }) => {
           '172.16.0.0/12',
           '192.168.0.0/16',
         ],
+        controlUi: {
+          dangerouslyAllowHostHeaderOriginFallback: true,
+        },
       },
     },
     null,
@@ -42,8 +55,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
     'set -e; ' +
     'CONFIG="$OPENCLAW_CONFIG_PATH"; ' +
     'mkdir -p "$(dirname "$CONFIG")"; ' +
-    'if [ ! -f "$CONFIG" ]; then ' +
-    '  echo "[wrapper] writing initial openclaw.json"; ' +
+    'if [ ! -f "$CONFIG" ] || ! grep -q "dangerouslyAllowHostHeaderOriginFallback" "$CONFIG"; then ' +
+    '  echo "[wrapper] writing openclaw.json with StartOS-compatible settings"; ' +
     '  echo "' + configB64 + '" | base64 -d > "$CONFIG"; ' +
     '  chmod 600 "$CONFIG"; ' +
     'fi; ' +
