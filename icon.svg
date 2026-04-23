@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- StartOS package icon for OpenClaw. Stylized lobster silhouette
+       on a circular gradient background — matches OpenClaw's "lobster
+       way" branding without using their official logotype. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1d2e"/>
+      <stop offset="100%" stop-color="#0d0f1a"/>
+    </linearGradient>
+    <linearGradient id="lobster" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6b4a"/>
+      <stop offset="100%" stop-color="#c8341a"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <g fill="url(#lobster)" transform="translate(128 132)">
+    <!-- body -->
+    <ellipse cx="0" cy="0" rx="38" ry="58"/>
+    <!-- tail segments -->
+    <path d="M -28 50 Q 0 78 28 50 L 22 64 Q 0 80 -22 64 Z"/>
+    <path d="M -22 62 Q 0 86 22 62 L 14 76 Q 0 88 -14 76 Z"/>
+    <!-- left claw -->
+    <g transform="translate(-58 -38) rotate(-25)">
+      <ellipse cx="0" cy="0" rx="20" ry="14"/>
+      <rect x="-4" y="-22" width="8" height="22" rx="3"/>
+      <rect x="-4" y="-32" width="8" height="14" rx="3" transform="rotate(-30 0 -25)"/>
+    </g>
+    <!-- right claw -->
+    <g transform="translate(58 -38) rotate(25)">
+      <ellipse cx="0" cy="0" rx="20" ry="14"/>
+      <rect x="-4" y="-22" width="8" height="22" rx="3"/>
+      <rect x="-4" y="-32" width="8" height="14" rx="3" transform="rotate(30 0 -25)"/>
+    </g>
+    <!-- antennae -->
+    <path d="M -8 -54 Q -28 -78 -16 -98" stroke="url(#lobster)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M  8 -54 Q  28 -78  16 -98" stroke="url(#lobster)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- eye highlights -->
+    <circle cx="-10" cy="-42" r="3" fill="#0d0f1a"/>
+    <circle cx="10" cy="-42" r="3" fill="#0d0f1a"/>
+  </g>
+</svg>
