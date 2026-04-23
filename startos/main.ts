@@ -4,9 +4,6 @@ import { storeJson } from './fileModels/store.json'
 import { bridgePort, dataMountpoint, gatewayPort } from './utils'
 
 export const main = sdk.setupMain(async ({ effects }) => {
-  /**
-   * ======================== Setup ========================
-   */
   console.info(i18n('Starting OpenClaw gateway...'))
 
   const { gatewayToken } = (await storeJson.read().const(effects)) ?? {}
@@ -18,10 +15,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
   }
 
   /**
-   * Build the openclaw.json content as a JSON string. We pre-seed
-   * gateway.trustedProxies with the StartOS internal proxy ranges so
-   * OpenClaw accepts WebSocket upgrades from the StartOS reverse proxy
-   * (without this, browsers get rejected with code 4008 "connect failed").
+   * Pre-seed openclaw.json with bind, auth, mode, and trustedProxies set.
+   * Skipped if a config already exists, so user edits survive restarts.
    */
   const openclawConfig = JSON.stringify(
     {
@@ -45,24 +40,30 @@ export const main = sdk.setupMain(async ({ effects }) => {
     null,
     2,
   )
-
-  // Base64-encode the config so we can pass it through the shell without
-  // worrying about quoting. The bootstrap shell snippet decodes it and
-  // writes the file only if one doesn't already exist (so user edits to
-  // openclaw.json — channel creds, model API keys, etc. — survive restarts).
   const configB64 = Buffer.from(openclawConfig).toString('base64')
-  const bootstrapScript =
-    'CONFIG="$OPENCLAW_CONFIG_PATH"; ' +
-    'if [ ! -f "$CONFIG" ]; then ' +
-    '  echo "[wrapper] writing initial openclaw.json"; ' +
-    '  mkdir -p "$(dirname "$CONFIG")"; ' +
-    '  echo "' + configB64 + '" | base64 -d > "$CONFIG"; ' +
-    'fi; ' +
-    'exec node /app/openclaw.mjs gateway'
 
   /**
-   * ======================== Daemon ========================
+   * Bootstrap script. The container starts as root because the volume
+   * mount lands at /home/node/.openclaw owned by root — but the upstream
+   * Dockerfile expects OpenClaw to run as user `node` (uid 1000). So we:
+   *   1. fix ownership of the mountpoint and config dir to node:node
+   *   2. write openclaw.json (as root, then chown it to node)
+   *   3. drop privileges to node and exec OpenClaw via `su`
    */
+  const bootstrapScript =
+    'set -e; ' +
+    'CONFIG="$OPENCLAW_CONFIG_PATH"; ' +
+    'CONFIG_DIR="$(dirname "$CONFIG")"; ' +
+    'mkdir -p "$CONFIG_DIR"; ' +
+    'chown -R node:node "$CONFIG_DIR"; ' +
+    'if [ ! -f "$CONFIG" ]; then ' +
+    '  echo "[wrapper] writing initial openclaw.json"; ' +
+    '  echo "' + configB64 + '" | base64 -d > "$CONFIG"; ' +
+    '  chown node:node "$CONFIG"; ' +
+    '  chmod 600 "$CONFIG"; ' +
+    'fi; ' +
+    'exec su -p node -c "exec node /app/openclaw.mjs gateway"'
+
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,
