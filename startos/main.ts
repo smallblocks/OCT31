@@ -63,6 +63,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         'lan',
         '--port',
         String(gatewayPort),
+        '--allow-unconfigured',
       ],
       env: {
         OPENCLAW_GATEWAY_TOKEN: gatewayToken,
