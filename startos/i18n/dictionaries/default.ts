@@ -24,39 +24,58 @@ const dict = {
   // init/taskSetPassword.ts
   'Set your OpenClaw Control UI password to enable login': 14,
 
-  // actions/configureLanModel.ts — action metadata
-  'Configure LAN Model (vLLM)': 15,
-  'Register a vLLM server on your local network as an OpenClaw model provider': 16,
+  // actions/configureLanModels.ts — action metadata
+  'Configure LAN Models': 15,
+  'Register up to three vLLM (OpenAI-compatible) servers on your LAN as model providers. Each slot becomes a separate provider in OpenClaw.': 16,
+  'Your vLLM server must be launched with tool-calling flags for OpenClaw agents to work. For Gemma 4: --enable-auto-tool-choice --tool-call-parser gemma4 --reasoning-parser gemma4 --chat-template examples/tool_chat_template_gemma4.jinja. For Qwen 2.5/3: --enable-auto-tool-choice --tool-call-parser hermes. For Llama 3.x: --enable-auto-tool-choice --tool-call-parser llama3_json.': 17,
 
   // action result
-  'LAN Model Configured': 17,
-  'Your vLLM server is registered and set as the default agent model. Restart OpenClaw for changes to take effect.': 18,
-  'Your vLLM server is registered as a provider. Restart OpenClaw and select it in the Control UI for specific sessions.': 19,
+  'LAN Models Configured': 18,
+  'LAN model providers saved. Restart OpenClaw for changes to take effect.': 19,
+  'No enabled slots. All lan-model-* providers have been removed from OpenClaw.': 20,
 
-  // form fields
-  'vLLM Base URL': 20,
-  'Full URL to your vLLM server, ending in /v1. Example: http://192.168.1.50:8000/v1': 21,
-  'Model ID': 22,
-  'The exact model id served by vLLM, as returned by /v1/models. Example: meta-llama/Llama-3.3-70B-Instruct': 23,
-  'Model Family': 24,
-  'Used to pick sensible context-window and max-output-token defaults. Pick the family of your model, or Custom to set them manually.': 25,
-  'Context Window Override (optional)': 26,
-  'Leave blank to use the default for the selected family. Set this if you launched vLLM with --max-model-len.': 27,
-  'Max Output Tokens Override (optional)': 28,
-  'Leave blank to use the default for the selected family. Max tokens OpenClaw will request per completion.': 29,
-  'API Key (optional)': 30,
-  'Only needed if you launched vLLM with --api-key. Leave blank for an open LAN server.': 31,
-  'Use as Default Agent Model': 32,
-  'Set this provider/model as the default agent model, replacing whatever is currently configured.': 33,
+  // slot labels
+  'Slot 1': 21,
+  'Slot 2': 22,
+  'Slot 3': 23,
+  'Enable Slot 1': 24,
+  'Enable Slot 2': 25,
+  'Enable Slot 3': 26,
+
+  // slot fields
+  'Base URL': 27,
+  'vLLM endpoint URL, ending in /v1. Example: http://192.168.1.50:8000/v1': 28,
+  'Model ID': 29,
+  'Exact model id from vLLM /v1/models. Example: google/gemma-4-31B-it': 30,
+  'Display Name': 31,
+  'Human-friendly name shown in OpenClaw. Leave blank to use the last path segment of the Model ID.': 32,
+  'Model Family': 33,
+  'Picks sensible context-window and max-output-token defaults.': 34,
+  'Context Window Override (optional)': 35,
+  'Blank = use family default. Set if you launched vLLM with --max-model-len.': 36,
+  'Max Output Tokens Override (optional)': 37,
+  'Blank = use family default. Max tokens OpenClaw requests per completion.': 38,
+  'API Key (optional)': 39,
+  'Only needed if you launched vLLM with --api-key. Leave blank for open servers.': 40,
+  'Reasoning Model': 41,
+  'Enable if this model produces chain-of-thought / thinking tokens (e.g. Gemma 4, DeepSeek R1).': 42,
+
+  // default model selector
+  'Default Agent Model': 43,
+  'Which enabled slot becomes OpenClaw\'s default agent model. Choose "None" to leave the current default alone.': 44,
+  'None — do not change the current default': 45,
 
   // model family select values
-  'Llama 3.x 70B / 8B (128K context)': 34,
-  'Qwen 2.5 (128K context)': 35,
-  'Qwen 3 (256K context)': 36,
-  'Mistral Large / Nemo (128K context)': 37,
-  'DeepSeek V3 / R1 (128K context)': 38,
-  'GPT-OSS (128K context)': 39,
-  'Custom (manual context window)': 40,
+  'Gemma 4 31B (262K context)': 46,
+  'Gemma 4 26B MoE (262K context)': 47,
+  'Nemotron 3 Super 120B (32K context)': 48,
+  'Llama 3.x 70B / 8B (128K context)': 49,
+  'Qwen 2.5 (128K context)': 50,
+  'Qwen 3 (256K context)': 51,
+  'Mistral Large / Nemo (128K context)': 52,
+  'DeepSeek V3 / R1 (128K context)': 53,
+  'GPT-OSS (128K context)': 54,
+  'Custom (manual context window)': 55,
 } as const
 
 /**
