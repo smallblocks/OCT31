@@ -21,7 +21,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin s
 
 # Install start-cli so OpenClaw agents can manage the local StartOS server.
 # The agent uses start-cli for server metrics, package management, and admin tasks.
-RUN curl -fsSL https://start9labs.github.io/start-cli/install.sh | sh
+# The installer puts it in ~/.local/bin; symlink to /usr/local/bin for PATH access.
+RUN curl -fsSL https://start9labs.github.io/start-cli/install.sh | sh && \
+    ln -sf /root/.local/bin/start-cli /usr/local/bin/start-cli
 
 # Install OpenClaw globally via the official install script.
 # HOME is set to a scratch path here so the installer doesn't scribble into /root.
