@@ -1,6 +1,6 @@
 FROM node:22-bookworm-slim
 
-ARG OPENCLAW_VERSION=2026.4.23
+ARG OPENCLAW_VERSION=2026.4.23-beta.6
 
 # System dependencies: OpenClaw agents invoke bash/git/curl/jq at runtime.
 # ca-certificates is required for the install script's HTTPS fetches.
