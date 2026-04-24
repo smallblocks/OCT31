@@ -1,7 +1,4 @@
 import { sdk } from '../sdk'
-import { regenerateGatewayToken } from './regenerateGatewayToken'
-import { showGatewayToken } from './showGatewayToken'
+import { setPassword } from './setPassword'
 
-export const actions = sdk.Actions.of()
-  .addAction(showGatewayToken)
-  .addAction(regenerateGatewayToken)
+export const actions = sdk.Actions.of().addAction(setPassword)
