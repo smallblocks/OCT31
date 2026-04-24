@@ -5,7 +5,7 @@ export const manifest = setupManifest({
   id: 'openclaw',
   title: 'OpenClaw',
   license: 'MIT',
-  packageRepo: 'https://github.com/openclaw/openclaw-startos',
+  packageRepo: 'https://github.com/smallblocks/OCT31',
   upstreamRepo: 'https://github.com/openclaw/openclaw',
   marketingUrl: 'https://openclaw.ai',
   donationUrl: null,
@@ -14,17 +14,16 @@ export const manifest = setupManifest({
   volumes: ['main'],
   images: {
     main: {
+      // Build from our own Dockerfile at the repo root. It installs OpenClaw
+      // via the official install script on a clean node:22-bookworm-slim base
+      // image — this avoids fighting the upstream Dockerfile's USER/HOME
+      // decisions which don't work well inside StartOS's user namespace.
       source: {
         dockerBuild: {
-          // Build context = upstream OpenClaw repo (added as a git submodule
-          // at ./openclaw). Uses the upstream's own multi-stage Dockerfile
-          // so we get the same artifacts the OpenClaw team ships.
-          workdir: './openclaw',
-          dockerfile: './openclaw/Dockerfile',
+          workdir: '.',
+          dockerfile: './Dockerfile',
         },
       },
-      // OpenClaw upstream pins node:24-bookworm digests for both x86_64 and
-      // aarch64 multi-arch manifests. riscv64 isn't supported upstream.
       arch: ['x86_64', 'aarch64'],
     },
   },
