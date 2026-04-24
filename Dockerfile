@@ -19,6 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install uv (needed by OpenClaw's Python agent sidecars).
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
 
+# Install start-cli so OpenClaw agents can manage the local StartOS server.
+# The agent uses start-cli for server metrics, package management, and admin tasks.
+RUN curl -fsSL https://start9labs.github.io/start-cli/install.sh | sh
+
 # Install OpenClaw globally via the official install script.
 # HOME is set to a scratch path here so the installer doesn't scribble into /root.
 ENV HOME=/opt/openclaw-home
