@@ -1,102 +1,87 @@
+import { openclawJson } from './fileModels/openclaw.json'
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { storeJson } from './fileModels/store.json'
-import { bridgePort, dataMountpoint, gatewayPort } from './utils'
+import { bridgePort, gatewayPort, mainMounts } from './utils'
 
+/**
+ * Daemon layout:
+ *
+ *   chown (oneshot)  -> primary (daemon)
+ *
+ * - chown runs as root before the gateway starts and fixes ownership
+ *   on the mounted volume so OpenClaw (running as node inside the image)
+ *   can write to /data. This is required because StartOS mounts the
+ *   volume owned by the container's root user.
+ *
+ * - primary runs the OpenClaw gateway. Auth config lives in
+ *   /data/.openclaw/openclaw.json, written by the wrapper's init hooks.
+ *   The `--allow-unconfigured` flag lets the gateway start even if the
+ *   user hasn't finished the optional channel setup.
+ */
 export const main = sdk.setupMain(async ({ effects }) => {
-  console.info(i18n('Starting OpenClaw gateway...'))
+  console.info(i18n('Starting OpenClaw Gateway...'))
 
-  const { gatewayToken } = (await storeJson.read().const(effects)) ?? {}
-  if (!gatewayToken) {
+  // Require the password to be set before we start. The "Set Password"
+  // critical install task enforces this interactively; this is a guard
+  // in case the user starts the service without completing that task.
+  const password = await openclawJson
+    .read((c) => c.gateway.auth.password)
+    .const(effects)
+  if (!password) {
     throw new Error(
-      'OpenClaw gateway token missing from store.json. ' +
-        'Run the "Regenerate Gateway Token" action and then restart the service.',
+      'OpenClaw password is not set. Run the "Set Password" action and then start the service.',
     )
   }
 
-  /**
-   * Pre-seed openclaw.json. Key decisions:
-   *   - bind: "lan"            - listen on all interfaces so StartOS can proxy
-   *   - auth: token            - use our generated token
-   *   - trustedProxies         - trust the StartOS internal proxy (10.0.x.x)
-   *   - controlUi.dangerouslyAllowHostHeaderOriginFallback: true
-   *                            - accept any origin whose host matches the
-   *                              request host. Safe on StartOS because only
-   *                              the StartOS proxy can reach us.
-   */
-  const openclawConfig = JSON.stringify(
-    {
-      gateway: {
-        mode: 'local',
-        port: gatewayPort,
-        bind: 'lan',
-        auth: {
-          mode: 'token',
-          token: gatewayToken,
-        },
-        trustedProxies: [
-          '127.0.0.1',
-          '::1',
-          '10.0.0.0/8',
-          '172.16.0.0/12',
-          '192.168.0.0/16',
-        ],
-        controlUi: {
-          dangerouslyAllowHostHeaderOriginFallback: true,
-        },
-      },
-    },
-    null,
-    2,
+  const openclawSub = await sdk.SubContainer.of(
+    effects,
+    { imageId: 'main' },
+    mainMounts(),
+    'openclaw-sub',
   )
-  const configB64 = Buffer.from(openclawConfig).toString('base64')
 
-  const bootstrapScript =
-    'set -e; ' +
-    'CONFIG="$OPENCLAW_CONFIG_PATH"; ' +
-    'mkdir -p "$(dirname "$CONFIG")"; ' +
-    'if [ ! -f "$CONFIG" ] || ! grep -q "dangerouslyAllowHostHeaderOriginFallback" "$CONFIG"; then ' +
-    '  echo "[wrapper] writing openclaw.json with StartOS-compatible settings"; ' +
-    '  echo "' + configB64 + '" | base64 -d > "$CONFIG"; ' +
-    '  chmod 600 "$CONFIG"; ' +
-    'fi; ' +
-    'exec node /app/openclaw.mjs gateway'
-
-  return sdk.Daemons.of(effects).addDaemon('primary', {
-    subcontainer: await sdk.SubContainer.of(
-      effects,
-      { imageId: 'main' },
-      sdk.Mounts.of().mountVolume({
-        volumeId: 'main',
-        subpath: null,
-        mountpoint: dataMountpoint,
-        readonly: false,
-      }),
-      'openclaw-sub',
-    ),
-    exec: {
-      command: ['sh', '-c', bootstrapScript],
-      user: 'root',
-      env: {
-        OPENCLAW_GATEWAY_TOKEN: gatewayToken,
-        HOME: '/root',
-        OPENCLAW_STATE_DIR: dataMountpoint,
-        OPENCLAW_CONFIG_PATH: dataMountpoint + '/openclaw.json',
-        NODE_ENV: 'production',
+  return sdk.Daemons.of(effects)
+    .addOneshot('chown', {
+      subcontainer: openclawSub,
+      exec: {
+        command: ['chown', '-R', 'node:node', '/data'],
       },
-      sigtermTimeout: 30_000,
-    },
-    ready: {
-      display: i18n('Gateway'),
-      fn: () =>
-        sdk.healthCheck.checkPortListening(effects, gatewayPort, {
-          successMessage: i18n('OpenClaw gateway is ready'),
-          errorMessage: i18n('OpenClaw gateway is not responding'),
-        }),
-      gracePeriod: 30_000,
-    },
-    requires: [],
-  })
+      requires: [],
+    })
+    .addDaemon('primary', {
+      subcontainer: openclawSub,
+      exec: {
+        command: [
+          'openclaw',
+          'gateway',
+          '--port',
+          gatewayPort.toString(),
+          '--bind',
+          'lan',
+          '--verbose',
+          '--allow-unconfigured',
+        ],
+        env: {
+          HOME: '/data',
+          OPENCLAW_STATE_DIR: '/data/.openclaw',
+        },
+        sigtermTimeout: 30_000,
+      },
+      ready: {
+        display: i18n('Web Interface'),
+        fn: () =>
+          sdk.healthCheck.checkWebUrl(
+            effects,
+            `http://openclaw.startos:${gatewayPort}`,
+            {
+              successMessage: i18n('OpenClaw Gateway is ready'),
+              errorMessage: i18n('OpenClaw Gateway is not ready'),
+            },
+          ),
+        gracePeriod: 40_000,
+      },
+      requires: ['chown'],
+    })
 })
 
 export { bridgePort }

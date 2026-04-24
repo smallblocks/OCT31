@@ -1,24 +1,25 @@
 import { i18n } from './i18n'
 import { sdk } from './sdk'
-import { bridgePort, gatewayPort } from './utils'
+import { gatewayPort } from './utils'
 
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
-  // -- Gateway / Control UI ------------------------------------------------
-  // OpenClaw exposes the Control UI, RPC, and channel webhooks all on
-  // port 18789. It is masked because access requires the auth token,
-  // which the user retrieves via the "Show Gateway Token" action.
+  // OpenClaw exposes the Control UI, RPC, channel webhooks, and node bridge
+  // all on the same port. The Control UI's own login form handles auth via
+  // the password set through the Set Password action — no URL-embedded
+  // credentials needed, so we leave the interface unmasked and the user
+  // can just click the link in the StartOS UI.
   const uiMulti = sdk.MultiHost.of(effects, 'ui-multi')
   const uiOrigin = await uiMulti.bindPort(gatewayPort, {
     protocol: 'http',
   })
   const ui = sdk.createInterface(effects, {
-    name: i18n('Control UI'),
+    name: i18n('Web UI'),
     id: 'ui',
     description: i18n(
-      'Web interface for managing OpenClaw — sessions, channels, tools, and skills.',
+      'OpenClaw Gateway Control UI — sessions, channels, tools, and skills.',
     ),
     type: 'ui',
-    masked: true,
+    masked: false,
     schemeOverride: null,
     username: null,
     path: '',
@@ -26,27 +27,5 @@ export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
   })
   const uiReceipt = await uiOrigin.export([ui])
 
-  // -- Bridge / WebSocket --------------------------------------------------
-  // Companion apps (macOS / iOS / Android nodes) pair to the gateway over
-  // a WebSocket on this port. Exposed as an `api` interface — no browser UI.
-  const bridgeMulti = sdk.MultiHost.of(effects, 'bridge-multi')
-  const bridgeOrigin = await bridgeMulti.bindPort(bridgePort, {
-    protocol: 'http',
-  })
-  const bridge = sdk.createInterface(effects, {
-    name: i18n('Bridge'),
-    id: 'bridge',
-    description: i18n(
-      'WebSocket bridge for OpenClaw companion apps (macOS / iOS / Android nodes).',
-    ),
-    type: 'api',
-    masked: true,
-    schemeOverride: null,
-    username: null,
-    path: '',
-    query: {},
-  })
-  const bridgeReceipt = await bridgeOrigin.export([bridge])
-
-  return [uiReceipt, bridgeReceipt]
+  return [uiReceipt]
 })
