@@ -1,23 +1,35 @@
-import { utils } from '@start9labs/start-sdk'
-import { storeJson } from '../fileModels/store.json'
+import { mkdir } from 'fs/promises'
+import { openclawJson } from '../fileModels/openclaw.json'
 import { sdk } from '../sdk'
 
 /**
- * Run on every init, but only generate a fresh token on first install.
- * On update / restore we leave the persisted token alone so paired clients
- * keep working.
+ * Run on install/upgrade/restore. Writes the StartOS-required keys into
+ * openclaw.json. User-managed sections (channels, model defaults) are
+ * preserved because `openclawJson.merge` only touches the keys we name.
+ *
+ * We don't seed a password here — that's a critical task ("Set Password")
+ * the user completes during install.
  */
 export const seedFiles = sdk.setupOnInit(async (effects, kind) => {
-  if (kind === 'install') {
-    await storeJson.merge(effects, {
-      gatewayToken: utils.getDefaultString({
-        // 64 hex chars = `openssl rand -hex 32`, matching OpenClaw's docs.
-        charset: '0-9,a-f',
-        len: 64,
-      }),
-    })
-  } else {
-    // Touch the file so it exists with the validated shape.
-    await storeJson.merge(effects, {})
-  }
+  // Ensure the state directory exists before FileHelper tries to write.
+  await mkdir(sdk.volumes.main.subpath('.openclaw'), { recursive: true })
+
+  await openclawJson.merge(effects, {
+    gateway: {
+      auth: { mode: 'password' },
+      controlUi: {
+        enabled: true,
+        allowInsecureAuth: true,
+        dangerouslyAllowHostHeaderOriginFallback: true,
+        dangerouslyDisableDeviceAuth: true,
+      },
+      trustedProxies: [
+        '127.0.0.1',
+        '::1',
+        '10.0.0.0/8',
+        '172.16.0.0/12',
+        '192.168.0.0/16',
+      ],
+    },
+  })
 })
