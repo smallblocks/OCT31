@@ -2,30 +2,27 @@ export const DEFAULT_LANG = 'en_US'
 
 const dict = {
   // main.ts
-  'Starting OpenClaw gateway...': 0,
-  'Generating gateway auth token...': 1,
-  Gateway: 2,
-  'OpenClaw gateway is ready': 3,
-  'OpenClaw gateway is not responding': 4,
+  'Starting OpenClaw Gateway...': 0,
+  'Web Interface': 1,
+  'OpenClaw Gateway is ready': 2,
+  'OpenClaw Gateway is not ready': 3,
 
   // interfaces.ts
-  'Control UI': 5,
-  'Web interface for managing OpenClaw — sessions, channels, tools, and skills.': 6,
-  Bridge: 7,
-  'WebSocket bridge for OpenClaw companion apps (macOS / iOS / Android nodes).': 8,
+  'Web UI': 4,
+  'OpenClaw Gateway Control UI — sessions, channels, tools, and skills.': 5,
 
-  // actions/showGatewayToken.ts
-  'Show Gateway Token': 9,
-  'Display the auto-generated authentication token used to access the OpenClaw gateway and pair companion apps.': 10,
-  'Gateway Token': 11,
-  'Paste this token into the OpenClaw companion app or include it as a Bearer token when calling the gateway over HTTP/WebSocket.': 12,
-  Token: 13,
+  // actions/setPassword.ts
+  'Set Password': 6,
+  'Reset Password': 7,
+  'Generate the password needed to log in to the OpenClaw Control UI': 8,
+  'Reset your OpenClaw Control UI password': 9,
+  'Existing browser sessions will be invalidated.': 10,
+  'Password Set': 11,
+  'Paste this password into the OpenClaw Control UI login form. Copy it now — it is only shown once.': 12,
+  Password: 13,
 
-  // actions/regenerateGatewayToken.ts
-  'Regenerate Gateway Token': 14,
-  'Generate a new gateway authentication token. This invalidates the previous token; any companion apps and external clients will need to re-pair.': 15,
-  'New Gateway Token': 16,
-  'A new token has been generated. Restart the service for it to take effect, then re-pair any clients.': 17,
+  // init/taskSetPassword.ts
+  'Set your OpenClaw Control UI password to enable login': 14,
 } as const
 
 /**
